@@ -1,0 +1,194 @@
+
+```{r}
+# Importing the data and wrangling----
+library(tidyverse) # for tidy data analysis
+library(readr)     # for fast reading of input files
+
+diabetes_data0 <-  read.csv("C:/Users/trans/OneDrive - UBC/Bioinformatics/MEDI504/MEDI504B/Project/DiabetesHIDataSet_train.csv", header = TRUE, stringsAsFactors = F, )
+
+
+names (diabetes_data0) <-  c("ID", "Diabetes_binary", "HighBP", "HighChol", "CholCheck", "BMI", "Smoker", "Stroke", "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost", "GenHlth", "MentHlth", "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income")
+
+
+
+
+str(diabetes_data0)
+
+diabetes_data1 <- diabetes_data0 %>%
+  dplyr::mutate(Diabetes_status = ifelse(Diabetes_binary == "0", "Healthy",
+                          ifelse(Diabetes_binary == "1", "Diabetic", NA)))
+
+str(diabetes_data1)
+
+# Exploratory Data Analysis----
+summary(diabetes_data1) # Basic 
+
+# Does each row repesent a unique patient record?
+length(diabetes_data1$ID)
+length(unique(diabetes_data1$ID))
+# YES
+
+# we also don't really care about sample code number, as it is not a biological variable.
+diabetes_data2 <- diabetes_data1
+row.names(diabetes_data2) <- diabetes_data1$ID
+
+diabetes_data3 <- diabetes_data2 %>% select(-ID)
+```
+
+```{r}
+#Automated EDA
+library(DataExplorer)
+create_report(diabetes_data3)
+```
+
+```{r, fig.width = 10, fig.height=10}
+# Missing Data---
+# use only complete cases
+# Missing values can be imputed we will see this later-- for now we will remove!
+diabetes_data4 <- diabetes_data3[complete.cases(diabetes_data3),]
+diabetes_pred <- diabetes_data4 %>%
+  select(-Diabetes_status)
+diabetes_status <- diabetes_data4$Diabetes_status
+
+
+# Exploratory Data Analysis
+ggplot(diabetes_data4, aes(x = Diabetes_status, fill = Diabetes_status)) + geom_bar()
+
+# Notice that we have slightly more diabetes than healthy -- there is a slight class imbalance.
+
+# We will deal with unbalanced datasets later
+#theme_set(theme_light(base_size = 18, base_family = "Poppins"))
+
+g <- ggplot(stack(diabetes_pred), aes(x = ind, y = values)) + geom_boxplot() + 
+  labs(title = "Boxplots of columns") + labs(x = "", y = "Values") + 
+  scale_y_continuous(breaks = seq(1, 10, by = 1))+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1, vjust=1),
+    legend.position = "none",
+    axis.title = element_text(size = 16),
+    panel.grid = element_blank()
+  )
+
+g +
+  geom_jitter(size = 2, alpha = 0.25, width = 0.2) +
+  stat_summary(fun = mean, geom = "point", size = 5)
+
+gather(diabetes_data4, x, y, Diabetes_binary:Income) %>%  # selecting data pairs
+  ggplot(aes(x = y, color = Diabetes_status, fill = Diabetes_status)) +
+  geom_density(alpha = 0.3) +
+  facet_wrap( ~ x, scales = "free", ncol = 3)
+
+```
+
+```{r}
+
+# Create correlation matrices
+# Healthy
+co_mat_healthy <- filter(diabetes_data4, Diabetes_status == "Healthy") %>%
+  select(-Diabetes_status) %>%
+  cor()
+# Diabetic
+co_mat_diabetic <- filter(diabetes_data4, Diabetes_status == "Diabetic") %>%
+  select(-Diabetes_status) %>%
+  cor()
+
+library(igraph)
+g_healthy <- graph.adjacency(co_mat_healthy,
+                            weighted = TRUE,
+                            diag = FALSE,
+                            mode = "upper")
+
+g_diabetic <- graph.adjacency(co_mat_diabetic,
+                               weighted = TRUE,
+                               diag = FALSE,
+                               mode = "upper")
+
+
+# http://kateto.net/networks-r-igraph
+
+E(g_healthy)$weight[is.na(E(g_healthy)$weight)] <- 0
+E(g_diabetic)$weight[is.na(E(g_diabetic)$weight)] <- 0
+
+cut.off_h <- mean(E(g_healthy)$weight)
+cut.off_d <- mean(E(g_diabetic)$weight)
+
+g_healthy_2 <- delete_edges(g_healthy, E(g_healthy)[weight < cut.off_h])
+g_diabetic_2 <- delete_edges(g_diabetic, E(g_diabetic)[weight < cut.off_d])
+
+c_g_healthy_2 <- cluster_fast_greedy(g_healthy_2) # implements network clustering methods 
+c_g_diabetic_2 <- cluster_fast_greedy(g_diabetic_2) 
+
+par(mfrow = c(1,2))
+
+plot(c_g_healthy_2, g_healthy_2,
+     vertex.size = colSums(co_mat_healthy) * 10, # the larger the vertex/node the more correlated that vertex is with other features
+     vertex.frame.color = NA, 
+     vertex.label.color = "black", 
+     vertex.label.cex = 0.8,
+     edge.width = E(g_healthy_2)$weight * 15,
+     layout = layout_with_fr(g_healthy_2),
+     main = "Healthy")
+
+plot(c_g_diabetic_2, g_diabetic_2,
+     vertex.size = colSums(co_mat_diabetic) * 10,
+     vertex.frame.color = NA, 
+     vertex.label.color = "black", 
+     vertex.label.cex = 0.8,
+     edge.width = E(g_diabetic_2)$weight * 15,
+     layout = layout_with_fr(g_diabetic_2),
+     main = "Diabetic")
+
+# The nodes in the graph represent each feature, and edge between the two nodes indicates that the features are correlated
+
+```
+
+
+```{r}
+# Principal Component Analysis
+library(ellipse)
+
+# perform pca and extract scores
+pcaOutput <- prcomp(as.matrix(select(diabetes_data4, -Diabetes_status)), scale = TRUE, center = TRUE)
+pcaOutput2 <- as.data.frame(pcaOutput$x)
+PoV <- pcaOutput$sdev^2/sum(pcaOutput$sdev^2)
+PoV
+# define groups for plotting
+pcaOutput2$groups <- diabetes_data4$Diabetes_status
+
+centroids <- aggregate(cbind(PC1, PC2) ~ groups, pcaOutput2, mean)
+
+conf.rgn  <- do.call(rbind, lapply(unique(pcaOutput2$groups), function(t)
+  data.frame(groups = as.character(t),
+             ellipse(cov(pcaOutput2[pcaOutput2$groups == t, 1:2]),
+                     centre = as.matrix(centroids[centroids$groups == t, 2:3]),
+                     level = 0.95),
+             stringsAsFactors = FALSE)))
+
+g1 <- ggplot(data = pcaOutput2, aes(x = PC1, y = PC2, group = groups, color = groups)) + 
+  geom_polygon(data = conf.rgn, aes(fill = groups), alpha = 0.2) +
+  geom_point(size = 2, alpha = 0.6) + 
+  labs(color = "",
+       fill = "") 
+
+g1
+# Can also make output more informative
+g2 <- g1+
+  labs(x = paste0("PC1: ", round(PoV[1], digits = 2) * 100, "% variance"),
+       y = paste0("PC2: ", round(PoV[2], digits = 2) * 100, "% variance"))
+
+g2
+```
+
+```{r}
+# There is a package to help with ggplot grammar
+#install.packages("esquisse")
+esquisse::esquisser()
+
+# Basic summary stats
+psych::describeBy(diabetes_data4)
+psych::describeBy(diabetes_pred, diabetes_status)
+
+# a better looking table
+arsenal::tableby(Diabetes_status~., data = diabetes_data4, total= TRUE) %>% summary(text = TRUE)
+```
+
+
