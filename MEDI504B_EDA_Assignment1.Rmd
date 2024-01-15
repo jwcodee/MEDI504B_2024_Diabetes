@@ -1,0 +1,306 @@
+---
+title: "MEDI 504B Assignment 1 - Kira Tosefsky"
+output:
+  pdf_document: default
+  html_document: default
+date: "2024-01-12"
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+dir <- "/Users/kiratosefsky/Desktop/MEDI504B/Assignment1"
+
+library(tidyverse) # for tidy data analysis
+library(readr)     # for fast reading of input files
+
+diabetes_data0 <-  read.csv("DiabetesHIDataSet_train.csv", header = FALSE, stringsAsFactors = F)
+
+colnames(diabetes_data0) <- as.character(diabetes_data0[1, ])
+diabetes_data <- diabetes_data0[-1, ]
+
+str(diabetes_data)
+
+#Convert to appropriate column types
+diabetes_data$Diabetes_binary <- factor(diabetes_data$Diabetes_binary, levels = c(0, 1), labels = c("No diabetes", "Diabetes"))
+diabetes_data$HighBP <- as.factor(diabetes_data$HighBP)
+diabetes_data$HighChol <- as.factor(diabetes_data$HighChol)
+diabetes_data$CholCheck <- as.factor(diabetes_data$CholCheck)
+diabetes_data$BMI <- as.integer(diabetes_data$BMI)
+diabetes_data$Smoker <- as.factor(diabetes_data$Smoker)
+diabetes_data$Stroke <- as.factor(diabetes_data$Stroke)
+diabetes_data$HeartDiseaseorAttack <- as.factor(diabetes_data$HeartDiseaseorAttack)
+diabetes_data$PhysActivity <- as.factor(diabetes_data$PhysActivity)
+diabetes_data$Fruits <- as.factor(diabetes_data$Fruits)
+diabetes_data$Veggies <- as.factor(diabetes_data$Veggies)
+diabetes_data$HvyAlcoholConsump <- as.factor(diabetes_data$HvyAlcoholConsump)
+diabetes_data$AnyHealthcare <- as.factor(diabetes_data$AnyHealthcare)
+diabetes_data$NoDocbcCost <- as.factor(diabetes_data$NoDocbcCost)
+diabetes_data$GenHlth <- as.integer(diabetes_data$GenHlth)
+diabetes_data$MentHlth <- as.integer(diabetes_data$MentHlth)
+diabetes_data$PhysHlth <- as.integer(diabetes_data$PhysHlth)
+diabetes_data$DiffWalk <- as.factor(diabetes_data$DiffWalk)
+diabetes_data$Sex <- as.factor(diabetes_data$Sex)
+diabetes_data$Age <- as.integer(diabetes_data$Age)
+diabetes_data$Education <- as.integer(diabetes_data$Education)
+diabetes_data$Income <- as.integer(diabetes_data$Income)
+
+
+# Exploratory Data Analysis----
+summary(diabetes_data) # Basic 
+
+# Define the ranges for each of the integer variables
+income_categories <- 8
+genhlth_categories <- 5
+menthlth_categories <- 30
+physlth_categories <- 30
+age_categories <- 13
+education_categories <- 6
+bmi_possible_values <- 26 # Assuming a BMI range from 15 to 40
+
+# Number of binary variables (assuming they are all 0 or 1)
+num_binary_variables <- 16
+
+# Calculate the probability for binary variables
+prob_binary <- (1/2) ^ num_binary_variables
+
+# Calculate the probability for integer variables
+prob_integer <- (1/income_categories) * (1/genhlth_categories) * (1/menthlth_categories) *
+               (1/physlth_categories) * (1/age_categories) * (1/education_categories) *
+               (1/bmi_possible_values)
+
+# Final probability of two individuals having identical records
+probability_identical <- prob_binary * prob_integer
+probability_identical
+
+num_records <- nrow(diabetes_data0)
+#calculate probability of any instance of a "real" duplicate in dataset (i.e. two unique individuals with matching values across all columns)
+probability_identical*num_records
+
+#it is unlikely that any identical records are from unique individuals, so we can remove duplicates safely
+
+# Does each row repesent a unique patient record?
+# Find duplicated rows based on all columns
+duplicated_rows <- diabetes_data[duplicated(diabetes_data), ]
+
+# View the duplicated rows
+print(duplicated_rows)
+
+# Keep only unique rows in the dataframe
+diabetes_data1 <- unique(diabetes_data)
+# 
+# #Automated EDA
+# library(DataExplorer)
+# create_report(diabetes_data1)
+```
+
+
+```{r data exploration}
+# Missing Data---
+# use only complete cases
+# Missing values can be imputed we will see this later-- for now we will remove!
+diabetes_data2 <- diabetes_data1[complete.cases(diabetes_data1),]
+diabetes_pred <- diabetes_data2 %>% select(-Diabetes_binary)
+diabetes_class <- diabetes_data2$Diabetes_binary
+
+summary(diabetes_data2)
+sapply(diabetes_data2, function(x) sum(is.na(x)))
+sapply(diabetes_data2, function(x) sum(is.infinite(x)))
+
+
+
+# Exploratory Data Analysis
+ggplot(diabetes_data2, aes(x = Diabetes_binary, fill = Diabetes_binary)) + geom_bar()
+
+# Minimal class imbalance.
+library(ggplot2)
+library(RColorBrewer)
+
+library(ggplot2)
+library(RColorBrewer)
+
+# Define a smaller size for the mean points
+mean_point_size <- 3
+
+# Define color palette
+colors <- brewer.pal(length(unique(stack(diabetes_pred)$ind)), "Set3")
+
+g <- ggplot(stack(diabetes_pred), aes(x = ind, y = values, fill = ind)) + 
+  geom_boxplot()
+
+# Display the plot
+print(g)
+
+#everything is binned, except BMI, mental health and physical health
+```
+
+
+```{r data exploration}
+# Select only integer columns, excluding 'Diabetes_binary' for reshaping
+integer_cols <- sapply(diabetes_data2, is.integer) & names(diabetes_data2) != "Diabetes_binary"
+
+diabetes_data2 %>%
+  select(which(integer_cols), Diabetes_binary) %>%
+  pivot_longer(cols = -Diabetes_binary, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, fill = Diabetes_binary, color = Diabetes_binary)) +
+  geom_density(alpha = 0.3) +
+  facet_wrap(~ variable, scales = "free") +
+  theme_minimal()
+
+
+library(tidyverse)
+library(gridExtra)
+
+# Assuming 'diabetes_data2' is your dataframe
+
+# Identify integer columns, excluding 'Diabetes_binary'
+integer_cols <- sapply(diabetes_data2, is.integer) & names(diabetes_data2) != "Diabetes_binary"
+
+# Reshape the data
+long_data <- diabetes_data2 %>%
+  select(which(integer_cols), Diabetes_binary) %>%
+  pivot_longer(cols = -Diabetes_binary, names_to = "variable", values_to = "value")
+
+# Subset for BMI (if BMI is an integer and part of the data)
+bmi_data <- long_data %>% filter(variable == "BMI")
+
+# Subset for other variables
+other_data <- long_data %>% filter(variable != "BMI")
+
+# Create density plot for BMI
+density_plot <- ggplot(bmi_data, aes(x = value, fill = Diabetes_binary, color = Diabetes_binary)) +
+  geom_density(alpha = 0.3) +
+  labs(x = "BMI", y = "Density") +
+  theme_minimal()
+
+# Create bar plots for other variables
+bar_plots <- ggplot(other_data, aes(x = value, fill = Diabetes_binary)) +
+  geom_bar(position = "stack") +
+  facet_wrap(~ variable, scales = "free") +
+  labs( x = "Value", y = "Count") +
+  theme_minimal()
+
+# Arrange the plots
+grid.arrange(density_plot, bar_plots, ncol = 1)
+```
+
+
+```{r data exploration}
+# Create correlation matrices
+# Benign
+co_mat_nodiabetes <- filter(diabetes_data2, Diabetes_binary == "No diabetes") %>%
+  select(-Diabetes_binary) %>%
+  sapply(function(x) as.numeric(as.character(x))) %>%
+  cor()
+# Malignant
+co_mat_diabetes <- filter(diabetes_data2, Diabetes_binary == "Diabetes") %>%
+  select(-Diabetes_binary) %>%
+  sapply(function(x) as.numeric(as.character(x))) %>%
+  cor()
+
+library(igraph)
+g_nodiabetes <- graph.adjacency(co_mat_nodiabetes, weighted = TRUE, mode = "upper", diag = FALSE)
+g_diabetes <- graph.adjacency(co_mat_diabetes, weighted = TRUE, mode = "upper", diag = FALSE)
+
+cut.off_nd <- mean(E(g_nodiabetes)$weight, na.rm = TRUE)
+cut.off_d <- mean(E(g_diabetes)$weight)
+
+
+g_nodiabetes_2 <- delete_edges(g_nodiabetes, which(E(g_nodiabetes)$weight < cut.off_nd))
+g_diabetes_2 <- delete_edges(g_diabetes, which(E(g_diabetes)$weight < cut.off_d))
+
+
+c_g_nodiabetes_2 <- cluster_fast_greedy(g_nodiabetes_2) # implements network clustering methods 
+c_g_diabetes_2 <- cluster_fast_greedy(g_diabetes_2) 
+
+par(mfrow = c(1,2))
+
+
+plot(c_g_nodiabetes_2, g_nodiabetes_2,
+     vertex.size = colSums(co_mat_nodiabetes) * 10, # the larger the vertex/node the more correlated that vertex is with other features
+     vertex.frame.color = NA, 
+     vertex.label.color = "black", 
+     vertex.label.cex = 0.8,
+     edge.width = E(g_nodiabetes_2)$weight * 15,
+     layout = layout_with_fr(g_nodiabetes_2),
+     main = "No diabetes")
+
+
+
+plot(c_g_diabetes_2, g_diabetes_2,
+     vertex.size = colSums(co_mat_diabetes) * 10, # the larger the vertex/node the more correlated that vertex is with other features
+     vertex.frame.color = NA, 
+     vertex.label.color = "black", 
+     vertex.label.cex = 0.8,
+     edge.width = E(g_diabetes_2)$weight * 15,
+     layout = layout_with_fr(g_diabetes_2),
+     main = "Diabetes")
+```
+
+
+```{r data exploration}
+# Principal Component Analysis
+library(ellipse)
+
+diabetes_data3 <- sapply(diabetes_data2, as.numeric) %>% as.data.frame()
+# perform pca and extract scores
+pcaOutput <- prcomp(as.matrix(select(diabetes_data3, -Diabetes_binary)), scale = TRUE, center = TRUE)
+pcaOutput2 <- as.data.frame(pcaOutput$x)
+PoV <- pcaOutput$sdev^2/sum(pcaOutput$sdev^2)
+PoV
+# define groups for plotting
+pcaOutput2$groups <- as.factor(diabetes_data3$Diabetes_binary)
+
+centroids <- aggregate(cbind(PC1, PC2) ~ groups, pcaOutput2, mean)
+
+conf.rgn  <- do.call(rbind, lapply(unique(pcaOutput2$groups), function(t)
+  data.frame(groups = as.character(t),
+             ellipse(cov(pcaOutput2[pcaOutput2$groups == t, 1:2]),
+                     centre = as.matrix(centroids[centroids$groups == t, 2:3]),
+                     level = 0.95),
+             stringsAsFactors = FALSE)))
+
+                                  
+g1 <- ggplot(data = pcaOutput2, aes(x = PC1, y = PC2, group = groups, color = groups)) + 
+  geom_polygon(data = conf.rgn, aes(fill = groups), alpha = 0.2) +
+  geom_point(size = 2, alpha = 0.6) + 
+  labs(color = "",
+       fill = "") 
+
+g1
+# Can also make output more informative
+g2 <- g1+
+  labs(x = paste0("PC1: ", round(PoV[1], digits = 2) * 100, "% variance"),
+       y = paste0("PC2: ", round(PoV[2], digits = 2) * 100, "% variance"))
+
+g2
+
+
+# Basic summary stats
+psych::describeBy(diabetes_data3)
+psych::describeBy(diabetes_pred, diabetes_class)
+
+# a better looking table
+arsenal::tableby(Diabetes_binary~., data = diabetes_data2, total= TRUE) %>% summary(text = TRUE)
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
