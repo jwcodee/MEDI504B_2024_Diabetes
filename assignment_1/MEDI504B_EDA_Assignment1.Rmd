@@ -3,6 +3,7 @@ title: "MEDI 504B Assignment 1"
 author: "Kira Tosesky, Irvin Ng, Johnathan Wong"
 output: github_document
 date: "2024-01-12"
+always_allow_html: true
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -105,13 +106,9 @@ DiabetesHIDataSet_train_unique <- unique(DiabetesHIDataSet_train)
 
 ```{r, eval=FALSE}
 # Automated EDA
-create_report(DiabetesHIDataSet_train_unique)
+create_report(DiabetesHIDataSet_train_unique, output_format = "pdf_document", output_file = "report.pdf")
 ```
 
-
-```{r, echo=FALSE,warning=FALSE}
-htmltools::includeHTML("report.html")
-```
 
 > Based on the automated EDA, our dataset is not missing any observations. This is consistent with the metadata. The description of *MentlHlth* and *PhysHlth* in the metadata, however, did not match what we see in the histogram analysis. These two columns indicate the number of days the patient did not feel mentally or physically well in the last 30 days using a scale of 1-30. The data, however, shows that 0 is a possible value. Given that it is possible to not feel unwell in the last 30 days, we are inclined to believe the metadata is incorrect.
 
