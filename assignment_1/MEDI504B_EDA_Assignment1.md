@@ -212,11 +212,10 @@ create_report(DiabetesHIDataSet_train_unique, output_format = "pdf_document", ou
 > In the correlation analysis, we see that *MentlHlth*, *PhysHlth*,
 > *GenHlth* and *BMI* are clustered and positively correlated with each
 > other. This is expected as these features can influence one and
-> another, according to literature (need to find a citation).
-> Furthermore, we observe a positive correlation between the features
-> `DiffWalk` and `Diabetes_binary` and these features, indicating that
-> difficulty in walking and having diabetes are correlated with these
-> factors.
+> another. Furthermore, we observe a positive correlation between the
+> features `DiffWalk` and `Diabetes_binary` and these features,
+> indicating that difficulty in walking and having diabetes are
+> correlated with these factors.
 
 > Finally in the principal component analysis, we see that PC1 only
 > accounted for 15.9% of the variance, showing that no single principal
