@@ -1,9 +1,7 @@
 ---
 title: "MEDI 504B Assignment 1"
 author: "Kira Tosesky, Irvin Ng, Johnathan Wong"
-output:
-  html_document: default
-  pdf_document: default
+output: github_document
 date: "2024-01-12"
 ---
 ```{r setup, include=FALSE}
@@ -109,24 +107,21 @@ DiabetesHIDataSet_train_unique <- unique(DiabetesHIDataSet_train)
 # Automated EDA
 create_report(DiabetesHIDataSet_train_unique)
 ```
+
+
+```{r, echo=FALSE,warning=FALSE}
+htmltools::includeHTML("report.html")
+```
+
 > Based on the automated EDA, our dataset is not missing any observations. This is consistent with the metadata. The description of *MentlHlth* and *PhysHlth* in the metadata, however, did not match what we see in the histogram analysis. These two columns indicate the number of days the patient did not feel mentally or physically well in the last 30 days using a scale of 1-30. The data, however, shows that 0 is a possible value. Given that it is possible to not feel unwell in the last 30 days, we are inclined to believe the metadata is incorrect.
 
-> Based on the histograms generated, we also found some outliers in the `BMI` features. There are some variations in the 60+ range with a max BMI of 98.
+> Based on the histograms generated, we also found some outliers in the `BMI` features. There are some observations in the 60+ range with a max BMI of 98. We believe these outliers are biological, thus we do not remove them.
 
 > In the correlation analysis, we see that *MentlHlth*, *PhysHlth*, *GenHlth* and *BMI* are clustered and positively correlated with each other. This is expected as these features can influence one and another, according to literature (need to find a citation). Furthermore, we observe a positive correlation between the features `DiffWalk` and `Diabetes_binary` and these features, indicating that difficulty in walking and having diabetes are correlated with these factors.
 
 > Finally in the principal component analysis, we see that PC1 only accounted for 15.9% of the variance, showing that no single principal component explained a high variance in the data.
 
 ```{r}
-# Missing Data---
-# use only complete cases
-# Missing values can be imputed we will see this later-- for now we will remove!
-#diabetes_data2 <- diabetes_data1[complete.cases(diabetes_data1),]
-#summary(diabetes_data2)
-#sapply(diabetes_data2, function(x) sum(is.na(x)))
-#sapply(diabetes_data2, function(x) sum(is.infinite(x)))
-
-
 diabetes_pred <-
   DiabetesHIDataSet_train_unique %>% select(-Diabetes_binary)
   diabetes_class <- DiabetesHIDataSet_train_unique$Diabetes_binary
@@ -147,9 +142,9 @@ mean_point_size <- 3
 colors <-
   brewer.pal(length(unique(stack(diabetes_pred)$ind)), "Set3")
 
-int_feat_boxplot <-
+int_feat_violin_plot <-
   ggplot(stack(diabetes_pred), aes(x = ind, y = values, fill = ind)) +
-  geom_boxplot() +
+  geom_violin() +
   ylab("Values") +
   xlab("Integer Features") +
   labs(fill = "Integer Features") +
@@ -157,9 +152,8 @@ int_feat_boxplot <-
   theme_bw()
 
 # Display the plot
-int_feat_boxplot
+int_feat_violin_plot
 
-#everything is binned, except BMI, mental health and physical health
 ```
 
 
@@ -294,7 +288,7 @@ plot(
 )
 ```
 
-> For both groups, the features were clustered into three groups. We can also see that the clusters were fairly similar to each other.
+> For both groups, the features were clustered into three groups. We can also see that the clusters were fairly similar to each other. The width of the edges in these plots indicate the weight which correspond to the strength of the correlation between the nodes. We observe that life style choices like eating vegetables and fruits correlate strongly with each other. Education and income also correlate strongly with each other. The size of each node is based on the sum of the correlation of that feature and we observe that features directly related to health have the highest sum.
 
 ```{r}
 # Principal Component Analysis
